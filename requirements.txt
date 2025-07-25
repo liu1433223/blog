@@ -1,0 +1,14 @@
+Django==4.2.9
+redis==4.5.5
+celery==5.3.1
+django-celery-results==2.5.1
+django-redis==5.2.0
+mysqlclient==2.2.7
+pytest
+fakeredis==2.30.1
+pytest-django
+pytest-mock
+pytest-asyncio
+fakeredis
+freezegun
+locust
