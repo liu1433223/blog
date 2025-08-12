@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'blog_stats.apps.BlogStatsConfig',
+    'blog',
 ]
 
 MIDDLEWARE = [
@@ -155,11 +156,11 @@ CELERY_ENABLE_UTC = False  # 与USE_TZ=False保持一致
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://@localhost:6379",  # 包含密码
+        "LOCATION": "redis://@localhost:6379",
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
             "CONNECTION_POOL_KWARGS": {"max_connections": 1000, "encoding": 'utf-8'},  # 池的个数
-            # "PASSWORD": "foobared"
+            "PASSWORD": "foobared"
         }
     }
 }

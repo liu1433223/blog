@@ -1,6 +1,5 @@
 # blog_stats/tasks.py
 from celery import shared_task
-from django.db import transaction
 from .models import ArticleStats, UserRead
 from .services import StatsCacheService
 import logging

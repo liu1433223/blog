@@ -1,12 +1,12 @@
-# blog_stats/views.py
 from django.db.models import Sum
 from django.views import View
 from django.http import JsonResponse
 from django.views.generic import TemplateView
 
+from .redis_client import get_redis_connection
 from .services import StatsCacheService
 from .models import ArticleStats, UserRead
-from django_redis import get_redis_connection
+
 
 import logging
 
@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 class HomeView(TemplateView):
     template_name = 'stats_monitor.html'
-
 
 class TrackArticleReadView(View):
     """跟踪文章阅读"""
@@ -71,7 +70,7 @@ class ArticleStatsView(View):
             user_read_distribution = self.get_user_read_distribution(article_id)
 
             # 缓存命中率统计
-            redis_conn = get_redis_connection("default")
+            redis_conn = get_redis_connection()
             if total_reads is not None and user_count is not None:
                 redis_conn.incr("cache:hits")
                 return JsonResponse({
@@ -122,18 +121,18 @@ class CacheStatsView(View):
     def get(self, request):
         try:
             hit_rate = StatsCacheService.get_cache_hit_rate()
-            redis_conn = get_redis_connection("default")
+            redis_conn = get_redis_connection()
             keys = redis_conn.info('keyspace')
 
             # 获取热门文章数量
-            top_articles = StatsCacheService.get_top_articles()  # 修复：使用正确的方法
+            top_articles = StatsCacheService.get_top_articles()
             top_articles_count = len(top_articles) if top_articles else 0
 
             return JsonResponse({
                 'hit_rate': f"{hit_rate:.2f}%",
                 'redis_stats': keys,
                 'total_keys': redis_conn.dbsize(),
-                'top_articles_count': top_articles_count  # 新增字段
+                'top_articles_count': top_articles_count
             })
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
@@ -172,5 +171,5 @@ class TotalReadsView(View):
 
     def get_user_read_distribution(self):
         """获取每个用户的阅读次数分布"""
-        user_reads = UserRead.objects.values('user_id', 'read_count')  # 移除过滤条件
+        user_reads = UserRead.objects.filter(read_count__gt=0).values('user_id', 'read_count')
         return {item['user_id']: item['read_count'] for item in user_reads}

@@ -1,6 +1,6 @@
 # blog_stats/services.py
 from django.core.cache import cache
-from django_redis import get_redis_connection
+# from django_redis import get_redis_connection
 import logging
 
 logger = logging.getLogger(__name__)
