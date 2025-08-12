@@ -1,36 +1,29 @@
-# blog_stats/middleware.py
-from django.utils.deprecation import MiddlewareMixin
-from .services import StatsCacheService
-import re
+class TrackArticleReadMiddleware:
+    """自动跟踪文章阅读的中间件"""
 
-
-class TrackArticleReadMiddleware(MiddlewareMixin):
     def __init__(self, get_response):
         self.get_response = get_response
-        super().__init__(get_response)
+
     def __call__(self, request):
         response = self.get_response(request)
 
-        # 检查是否是文章页面且响应成功
-        if (response.status_code == 200 and
-                hasattr(request, 'resolver_match') and
-                request.resolver_match and
-                re.match(r'^/blog/article/\d+/', request.path)):
-            article_id = request.resolver_match.kwargs.get('article_id')
-            if article_id and not getattr(request, '_read_tracked', False):
-                user_id = self.get_user_id(request)
-                try:
-                    StatsCacheService.increment_read(article_id, user_id)
-                    request._read_tracked = True
-                except Exception as e:
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.error(f"Failed to track read for article {article_id}: {str(e)}")
+        # 如果是文章详情页且请求成功
+        if response.status_code == 200 and 'blog/article' in request.path:
+            article_id = self.extract_article_id(request.path)
+            if article_id:
+                from .views import TrackArticleReadView
+                tracker = TrackArticleReadView()
+                tracker.post(request, article_id)
 
         return response
 
-    def get_user_id(self, request):
-        """获取用户标识"""
-        if hasattr(request, 'user') and request.user.is_authenticated:
-            return str(request.user.id)
-        return request.session.session_key or request.META.get('REMOTE_ADDR', 'anonymous')
+    def extract_article_id(self, path):
+        """从URL中提取文章ID"""
+        try:
+            # 假设URL格式为 /blog/article/<id>/
+            parts = path.split('/')
+            if len(parts) > 3 and parts[-2].isdigit():
+                return int(parts[-2])
+        except:
+            return None
+        return None
