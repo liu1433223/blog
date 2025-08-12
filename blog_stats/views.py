@@ -111,10 +111,15 @@ class CacheStatsView(View):
             redis_conn = get_redis_connection("default")
             keys = redis_conn.info('keyspace')
 
+            # 获取热门文章数量
+            top_articles = StatsCacheService.get_top_articles()  # 修复：使用正确的方法
+            top_articles_count = len(top_articles) if top_articles else 0
+
             return JsonResponse({
                 'hit_rate': f"{hit_rate:.2f}%",
                 'redis_stats': keys,
-                'total_keys': redis_conn.dbsize()
+                'total_keys': redis_conn.dbsize(),
+                'top_articles_count': top_articles_count  # 新增字段
             })
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)

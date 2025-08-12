@@ -6,5 +6,5 @@ urlpatterns = [
     path('', views.HomeView.as_view(), name='home'),
     path('track/<int:article_id>/', views.TrackArticleReadView.as_view(), name='track-read'),
     path('stats/<int:article_id>/', views.ArticleStatsView.as_view(), name='article-stats'),
-    path('cache-stats/', views.CacheStatsView.as_view(), name='cache-stats'),
+    path('stats/cache-stats/', views.CacheStatsView.as_view(), name='cache-stats'),
 ]
