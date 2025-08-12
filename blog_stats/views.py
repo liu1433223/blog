@@ -1,10 +1,12 @@
+# blog_stats/views.py
+from django.db.models import Sum
 from django.views import View
 from django.http import JsonResponse
 from django.views.generic import TemplateView
 
 from .services import StatsCacheService
 from .models import ArticleStats, UserRead
-
+from django_redis import get_redis_connection
 
 import logging
 
@@ -13,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class HomeView(TemplateView):
     template_name = 'stats_monitor.html'
+
 
 class TrackArticleReadView(View):
     """跟踪文章阅读"""
@@ -64,6 +67,9 @@ class ArticleStatsView(View):
             total_reads = StatsCacheService.get_total_reads(article_id)
             user_count = StatsCacheService.get_user_count(article_id)
 
+            # 新增：获取每个用户的阅读次数分布
+            user_read_distribution = self.get_user_read_distribution(article_id)
+
             # 缓存命中率统计
             redis_conn = get_redis_connection("default")
             if total_reads is not None and user_count is not None:
@@ -72,6 +78,7 @@ class ArticleStatsView(View):
                     'article_id': article_id,
                     'total_reads': total_reads,
                     'user_count': user_count,
+                    'user_read_distribution': user_read_distribution,
                     'source': 'cache'
                 })
             else:
@@ -85,6 +92,7 @@ class ArticleStatsView(View):
                         'article_id': article_id,
                         'total_reads': stats.total_reads,
                         'user_count': stats.user_count,
+                        'user_read_distribution': user_read_distribution,
                         'source': 'database'
                     })
                 except ArticleStats.DoesNotExist:
@@ -92,6 +100,7 @@ class ArticleStatsView(View):
                         'article_id': article_id,
                         'total_reads': 0,
                         'user_count': 0,
+                        'user_read_distribution': {},
                         'source': 'default'
                     })
         except Exception as e:
@@ -100,6 +109,11 @@ class ArticleStatsView(View):
                 'error': 'Internal server error',
                 'article_id': article_id
             }, status=500)
+
+    def get_user_read_distribution(self, article_id):
+        """获取每个用户的阅读次数分布"""
+        user_reads = UserRead.objects.filter(article_id=article_id).values('user_id', 'read_count')
+        return {item['user_id']: item['read_count'] for item in user_reads}
 
 
 class CacheStatsView(View):
@@ -123,3 +137,40 @@ class CacheStatsView(View):
             })
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
+
+
+class TotalReadsView(View):
+    """获取所有文章的总阅读量"""
+
+    def get(self, request):
+        try:
+            # 从缓存中获取总阅读量
+            total_reads = StatsCacheService.get_total_reads_all_articles()
+
+            if total_reads is None:
+                # 如果缓存未命中，从数据库中计算总阅读量
+                total_reads = ArticleStats.objects.aggregate(total=Sum('total_reads'))['total'] or 0
+                # 将结果回填到缓存
+                StatsCacheService.cache_total_reads_all_articles(total_reads)
+
+            # 统计所有文章的用户人次
+            total_users = UserRead.objects.values('user_id').distinct().count()
+
+            # 获取用户阅读分布数量
+            user_read_distribution = self.get_user_read_distribution()
+            user_read_distribution_count = len(user_read_distribution)
+
+            return JsonResponse({
+                'total_reads': total_reads,
+                'total_users': total_users,
+                'user_read_distribution_count': user_read_distribution_count,  # 新增字段
+                'source': 'cache' if total_reads is not None else 'database'
+            })
+        except Exception as e:
+            logger.error(f"Total reads retrieval error: {str(e)}")
+            return JsonResponse({'error': 'Internal server error'}, status=500)
+
+    def get_user_read_distribution(self):
+        """获取每个用户的阅读次数分布"""
+        user_reads = UserRead.objects.values('user_id', 'read_count')  # 移除过滤条件
+        return {item['user_id']: item['read_count'] for item in user_reads}
